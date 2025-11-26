@@ -230,7 +230,9 @@ class StartGG {
 		this.loadEventUrl().then(savedUrl => {
 			if (savedUrl) {
 				this.#eventIdInput.value = savedUrl;
-				this.getEntrantsForEvent(savedUrl);
+				this.getEntrantsForEvent(savedUrl).then(() => {
+					this.#startGGPopulateTournamentNameBtn.click();
+				});
 			}
 		});
 
