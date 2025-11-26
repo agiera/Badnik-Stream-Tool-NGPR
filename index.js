@@ -2,6 +2,8 @@ const { app } = require('electron')
 const path = require('path')
 const WebSocket = require('ws')
 
+app.commandLine.appendSwitch('enable-logging');
+
 // define the main folder
 let resourcesPath;
 if (!app.isPackaged) {

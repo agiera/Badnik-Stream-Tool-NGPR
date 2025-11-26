@@ -2,8 +2,8 @@
   "EasyGUISection.mjs",
   "Example.mjs",
   "NameThatColor.mjs",
-  "obs-websocket-js.mjs",
   "OBSWebsocketControl.mjs",
-  "startGGIntegration.mjs",
-  "VodRename.mjs"
+  "VodRename.mjs",
+  "obs-websocket-js.mjs",
+  "startGGIntegration.mjs"
 ]

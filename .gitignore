@@ -5,12 +5,12 @@ dist
 .stfolder
 
 # GUI Settings
-Stream Tool/Resources/Texts/GUI Settings.json
+**/GUI Settings.json
 
 #Presets
-Stream Tool/Resources/Texts/Player Info
-Stream Tool/Resources/Texts/Player Info.json
-Stream Tool/Resources/Texts/Character List.json
-Stream Tool/Resources/Texts/startGGAuth.json
+**/Player Info
+**/Player Info.json
+**/Character List.json
+**/startGGAuth.json
 
 .DS_Store

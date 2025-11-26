@@ -21,10 +21,8 @@ module.exports = function initExec(rPath, nPath, wSocket) {
         wsPort = guiSettings.webSocketPort;
         guiWidth = guiSettings.guiWidth;
         guiHeight = guiSettings.guiHeight;
-        if (process.platform == "win32") {
-            guiWidth = guiWidth + 8; // windows why cant you be normal
-            guiHeight = guiHeight + 30;
-        }
+        console.log('Loaded from file - guiWidth:', guiWidth, 'guiHeight:', guiHeight);
+        console.log('Platform:', process.platform);
 
         // initialize them servers
         initHttpServer();
@@ -36,8 +34,8 @@ module.exports = function initExec(rPath, nPath, wSocket) {
         failed = true;
         httpPort = 7070;
         wsPort = 8080;
-        guiWidth = 840;
-        guiHeight = 420;
+        guiWidth = 600;
+        guiHeight = 400;
     }
 
 
@@ -202,8 +200,15 @@ function createWindow() {
 
     win.on("close", () => {
         // save current window dimensions
-        guiWidth = win.getBounds().width;
-        guiHeight = win.getBounds().height;
+        const bounds = win.getBounds();
+        const contentBounds = win.getContentBounds();
+        console.log('Platform:', process.platform);
+        console.log('Previous guiWidth:', guiWidth);
+        console.log('Previous guiHeight:', guiHeight);
+        
+        // Use content bounds instead of regular bounds to exclude decorations
+        guiWidth = contentBounds.width;
+        guiHeight = contentBounds.height;
     })
     
 }
@@ -218,13 +223,9 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         // save current window dimensions
         const data = JSON.parse(fs.readFileSync(`${resourcesPath}/Texts/GUI Settings.json`));
-        if (process.platform == "win32") {
-            data.guiWidth = guiWidth - 8;
-            data.guiHeight = guiHeight - 30;
-        } else {
-            data.guiWidth = guiWidth;
-            data.guiHeight = guiHeight;
-        }
+        data.guiWidth = guiWidth;
+        data.guiHeight = guiHeight;
+        console.log('Writing to file - guiWidth:', data.guiWidth, 'guiHeight:', data.guiHeight);
         fs.writeFileSync(`${resourcesPath}/Texts/GUI Settings.json`, JSON.stringify(data, null, 2));
         // and good bye
         app.quit()

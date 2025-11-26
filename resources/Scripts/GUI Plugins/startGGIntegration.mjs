@@ -1,5 +1,3 @@
-
-
 /**
  * TODO:
  * Setup API to do the following:
@@ -28,8 +26,6 @@ import { bestOf } from "../GUI/BestOf.mjs";
 
 
 const updateDiv = document.getElementById('updateRegion');
-
-const connectInformation = await getJson(stPath.text + "/startGGAuth");
 
 const newToggles = [{
     id: "startGGEventId",
@@ -144,12 +140,21 @@ const newToggles = [{
     type: "button",
     disabled: false,
     className: "settingsButton"
+},
+{
+    id: "startGGApiKey",
+    title: "Your Start.gg API key. Get one at https://start.gg/admin/profile/developer",
+    innerText: "API Key",
+    type: "password",
+    disabled: false,
+    className: "textInput"
 }
 ]
 
 const divs = guiSection.genGuiSection('StartGG', 'top', newToggles, 1, false);
 
 class StartGG {
+    #apiKeyInput = document.getElementById('startGGApiKey');
     #eventIdInput = document.getElementById('startGGEventId');
     #participantsBtn = document.getElementById('startGGGetParticipants');
     #startGGPlayerSelect = document.getElementById('startGGPlayerSelect');
@@ -159,7 +164,7 @@ class StartGG {
 	#useCustomRoundCheck = document.getElementById('customRound');
 	// #startGGPopulateTournamentNameCheck = document.getElementById('startGGPopulateTournamentName');
 	// #startGGSetGameCheck = document.getElementById('startGGSetGame');
-	
+
 
 	#startGGGetSetDataBtn = document.getElementById('startGGGetSetData');
 	#startGGAutoUpdateSetDataCheck = document.getElementById('startGGAutoUpdateSetData');
@@ -209,13 +214,30 @@ class StartGG {
 		this.#startGGPopulateTournamentNameBtn.addEventListener('click', () => this.setTournamentName());
 		this.#startGGSetGameBtn.addEventListener('click', ()=> this.setGame());
 
+		// Save API key when it changes
+		this.#apiKeyInput.addEventListener('blur', () => this.saveApiKey(this.#apiKeyInput.value));
+
 		updateDiv.addEventListener('click', ()=> (this.isAutoReportSetEnabled()) ? this.updateAndReport() : this.updateSetInfo() );
 		this.toggleElems(false);
+
+		// Load saved API key and event URL
+		this.loadApiKey().then(savedKey => {
+			if (savedKey) {
+				this.#apiKeyInput.value = savedKey;
+			}
+		});
+
+		this.loadEventUrl().then(savedUrl => {
+			if (savedUrl) {
+				this.#eventIdInput.value = savedUrl;
+				this.getEntrantsForEvent(savedUrl);
+			}
+		});
 
     }
 
 	toggleElems (showElems) {
-		for (let i = 2; i < divs.toggleDivs.length; i++) { //skip first 2, as those are fine.
+		for (let i = 2; i < divs.toggleDivs.length - 1; i++) { //skip first 2 (Event ID, Get Event button) and last 1 (API key)
 			if (divs.toggleDivs[i].classList.contains('hidden') ) {
 				if (showElems) {
 					divs.toggleDivs[i].classList.remove('hidden');
@@ -224,7 +246,6 @@ class StartGG {
 				if (!showElems) {
 					divs.toggleDivs[i].classList.add('hidden');
 				}
-				
 			}
 		}
 	}
@@ -243,14 +264,36 @@ class StartGG {
      * - 6 - Check-in
      * 
      * Currently, this only gets items that are In Progress. So first, set your people to play and put their set to In Progress. It will then find that set and pull the data automatically for it into the tool.
-     * Since this is based upon a player and event, it should only ever return 1 game. 
+     * Since this is based upon a player and event, it should only ever return 1 game.
      * NOTE: Round Robin may cause issues
      */
 
 	isAutoReportSetEnabled() {
 		return this.#startGGAutoUpdateSetDataCheck.checked;
 	}
-	
+
+	async loadApiKey() {
+		const guiSettings = await getJson(`${stPath.text}/GUI Settings`);
+		return guiSettings.startGGApiKey || '';
+	}
+
+	async saveApiKey(apiKey) {
+		const guiSettings = await getJson(`${stPath.text}/GUI Settings`);
+		guiSettings.startGGApiKey = apiKey;
+		await saveJson(`/GUI Settings`, guiSettings);
+	}
+
+	async loadEventUrl() {
+		const guiSettings = await getJson(`${stPath.text}/GUI Settings`);
+		return guiSettings.startGGEventUrl || '';
+	}
+
+	async saveEventUrl(url) {
+		const guiSettings = await getJson(`${stPath.text}/GUI Settings`);
+		guiSettings.startGGEventUrl = url;
+		await saveJson(`/GUI Settings`, guiSettings);
+	}
+
 	customRoundClicked() {
 		if (!this.#useCustomRoundCheck.checked) {
 			this.#startGGPopulateRoundNameCheck.checked = false
@@ -262,7 +305,7 @@ class StartGG {
 			if (!this.#useCustomRoundCheck.checked) {
 				this.#useCustomRoundCheck.click();
 			}
-		}		
+		}
 	}
 
 	validEventId() {
@@ -277,7 +320,6 @@ class StartGG {
 		if (this.validEventId()) {
 			tournament.setText(this.#tournamentName);
 		}
-		
 	}
 
 	async setGame() {
@@ -311,7 +353,7 @@ class StartGG {
 					total
 					totalPages
 				}
-				
+
 				nodes {
 				  round
 				  fullRoundText
@@ -350,10 +392,10 @@ class StartGG {
 	}
 
 	async saveToBracket() {
-		let setsCounts = {};	
+		let setsCounts = {};
 		let bracketRoundSelect = document.getElementById('bracketRoundSelect');
 		let newBracketData = JSON.parse(JSON.stringify(bracketData));
-		
+
 		for (let i in this.#top8Sets) {
 			let stRoundName = "";
 			try {
@@ -361,11 +403,10 @@ class StartGG {
 			} catch (e) {
 				stRoundName = 'LosersTop8';
 			}
-			
+
 			let curSetNum = 0;
 
 			for (let p in this.#top8Sets[i].slots) { //Player 1 and 2 slots
-				
 				if (!setsCounts[stRoundName] && setsCounts[stRoundName] != 0) {//each index count is the player, since its done by an array of players.
 					setsCounts[stRoundName] = 0;
 				} else {
@@ -392,7 +433,7 @@ class StartGG {
 					iconSrc: ""
 				}
 
-				/*TODO: 
+				/*TODO:
 					eventually, get character information (if possible)
 					clear character data when populating a blank set (to ensure if something changed we dont represent the wrong characters)
 
@@ -425,7 +466,7 @@ class StartGG {
 					if (newPlayer) { //reset skins
 						await bracketPlayers[curSetNum].charChange(defaultSkin.character, true);
 						bracketPlayers[curSetNum].skinChange(defaultSkin.skin);
-					}					
+					}
 				} else {
 					let newPlayer = (newBracketData[stRoundName][curSetNum].name != playerInfo.name);
 
@@ -441,9 +482,7 @@ class StartGG {
 						// newBracketData[stRoundName][curSetNum].skin = playerInfo.skin;
 						// newBracketData[stRoundName][curSetNum].iconSrc= playerInfo.iconSrc;
 					}
-					
 				}
-
 			}
 		}
 
@@ -457,7 +496,6 @@ class StartGG {
 		}
 
 		await updateBracket();
-		
 	}
 
 	getTop8SetsData (json) {
@@ -485,7 +523,6 @@ class StartGG {
 			let set = json.data.event.sets.nodes[i];
 			set.id = "" + set.id; //Convert to string for items that are not int.
 			if (prereqIds.includes(set.id) && set.fullRoundText.indexOf('Winners') == -1) { //ensures we only grab losers sets.
-				 
 				top8Only.push(JSON.parse(JSON.stringify(set)));
 			}
 		}
@@ -510,26 +547,26 @@ class StartGG {
 			if (!this.validEventId()) {
 				return;
 			}
-	
+
 			if (!playerName) {
 				displayNotif('Must select a valid player');
 				return;
 			}
-	
+
 			let playerId = "";
-	
+
 			let player = JSON.parse(this.getPlayerFromPlayerList("tag", playerName));
-	
+
 			if (player.playerId) {
 				playerId = player.playerId;
 			}
-	
+
 			if (!playerId) {
 			  displayNotif('Must select a valid player');
 			  return;
 			}
 
-			
+
 			let query = `
 			query EventSets($eventId: ID!) {
 				event(id: $eventId) {
@@ -538,7 +575,7 @@ class StartGG {
 				  sets(filters: {
 					playerIds: ${playerId}
 					state: 2
-				  }) {      
+				  }) {
 					nodes {
 					  state
 					  id
@@ -558,13 +595,13 @@ class StartGG {
 					}
 				  }
 				}
-			  }		  
+			  }
 			`;
-	
+
 			let variables = {
 				"eventId": eventId
 			}
-	
+
 			let json = await this.generalApiCall(query, variables);
 
 			clearTeams();
@@ -600,7 +637,7 @@ class StartGG {
 	}
 
 	async setPlayersInTool () {
-		/* TODO 
+		/* TODO
 
 		Edit the playerInfo.json to include the playerId value (this will be used in future situations.)
 			- Only update the PlayerInfo.json if the file is missing data. Do not update if data already exists.
@@ -614,7 +651,6 @@ class StartGG {
 		}
 
 		for (let i = 0; i < 2; i++) {
-			
 			let playerCombinedJson = this.getCombinedPlayerDataFromEntrantId(this.#currentSetInfo.slots[i].entrant.id);
 			players[i].setName(playerCombinedJson.name);
 			players[i].setTag(playerCombinedJson.tag);
@@ -679,7 +715,7 @@ class StartGG {
 					}
 				}
 			}
-	
+
 			for (let i in presetValue) {
 				if (useStartGGValues) {
 					if (prioritizeNonEmpty) {
@@ -692,7 +728,7 @@ class StartGG {
 						value[i] = (presetValue[i]) ? presetValue[i] : startGGValue[i];
 					} else {
 						value[i] = presetValue[i];
-					}				
+					}
 				}
 			}
 		} else { //Simple
@@ -701,16 +737,15 @@ class StartGG {
 					value = (startGGValue) ? startGGValue : presetValue;
 				} else {
 					value = startGGValue;
-				}	
+				}
 			} else {
 				if (prioritizeNonEmpty) {
 					value = (presetValue) ? presetValue : startGGValue;
 				} else {
 					value = presetValue;
-				}	
+				}
 			}
 		}
-		
 		return value;
 	}
 
@@ -787,7 +822,7 @@ class StartGG {
 
 	getSetWinner(curScores) {
 		let playerNum = null;
-		
+
 		if (curScores[0] > curScores[1]) {
 			playerNum = 0;
 		} else {
@@ -838,7 +873,7 @@ class StartGG {
 		if (!this.#currentSetInfo.useDetailedReportType ) {
 			return (this.#currentSetInfo.winnerId);
 		}
-		
+
 		let gameInfo = {};
 		let gameNum = 0;
 		let gameStats = {};
@@ -891,7 +926,7 @@ class StartGG {
 		return true;
 	}
 
-	async reportSet() {		
+	async reportSet() {
 		if (!this.#currentSetInfo.id) {
 			displayNotif('Need to pull Match Info from StartGG first.');
 			return;
@@ -918,7 +953,6 @@ class StartGG {
 				return; //No winner yet. Fine on multiple game sets.
 			}
 		}
-		
 
 		if (!variables.setId) {
 			displayNotif('Must have set data to report');
@@ -945,23 +979,67 @@ class StartGG {
 		return JSON.stringify(player);
 	}
 
-	async getEntrantsForEvent(eventId) {
-		if (!eventId) {
+	async getEntrantsForEvent(eventLookupKey) {
+		if (!eventLookupKey) {
 			displayNotif('Must provide a valid event (either eventID or URL).');
 			this.toggleElems(false);
 			return;
 		}
 
+		await this.saveEventUrl(eventLookupKey);
+
+		console.log('Original event ID: ' + eventLookupKey);
+
 		let eventInputType = 'ID';
 		let eventInputType2 = eventInputType.toLocaleLowerCase();
-		if (eventId.indexOf('tournament/') != -1) {
+
+		if (eventLookupKey.indexOf('/event/') != -1) {
 			eventInputType = 'String';
 			eventInputType2 = 'slug';
-
-			let tempVar = eventId.split('tournament/');
-			eventId = 'tournament/' + tempVar[1];
 		}
 
+		if (eventLookupKey.indexOf('http') == 0) {
+
+			console.log('Original event URL: ' + eventLookupKey);
+
+            // Try to resolve url redirects
+            try {
+                const response = await fetch(eventLookupKey, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+
+                console.log('Response URL:', response.url);
+                console.log('Was redirected:', response.redirected);
+
+                // Use the final URL regardless of redirect status
+                eventLookupKey = response.url;
+                console.log('Using URL: ' + eventLookupKey);
+
+            } catch (e) {
+                console.error('Redirect error:', e);
+                displayNotif('Failed to resolve event URL: ' + e.message);
+                this.toggleElems(false);
+                return;
+            }
+
+            console.log('Parsing event URL: ' + eventLookupKey);
+
+            if (eventLookupKey.indexOf('tournament/') != -1) {
+				const urlParts = eventLookupKey.split('tournament/')[1].split('/event/');
+				const tournamentSlug = urlParts[0];
+				const eventNameSlug = urlParts[1].split('/')[0];
+				eventLookupKey = 'tournament/' + tournamentSlug + '/event/' + eventNameSlug;
+			} else {
+				displayNotif('Invalid Event URL');
+				this.toggleElems(false);
+				return;
+			}
+		}
+
+		console.log('Using event identifier type: ' + eventInputType);
+		console.log('Using event identifier type 2: ' + eventInputType2);
+		console.log('Event identifier: ' + eventLookupKey);
 
 		let query = `
         query EventEntrants($eventId: ${eventInputType}!, $page: Int!, $perPage: Int!) {
@@ -1014,7 +1092,7 @@ class StartGG {
         `;
 
 		let variables = {
-			"eventId": eventId,
+			"eventId": eventLookupKey,
 			"page": 1,
 			"perPage": 100
 		}
@@ -1039,8 +1117,8 @@ class StartGG {
 
 					prevPhaseOrder = curPhaseOrder;
 				}
-				
-				
+
+
 				this.#players = [];
 
 				for (let e in data.data.event.entrants.nodes) {
@@ -1070,14 +1148,20 @@ class StartGG {
 					this.#startGGPlayerSelect.appendChild(option);
 				}
 
-				
+
 				displayNotif('Event found');
 				this.toggleElems(true);
 
 				await this.getVideogameInfo(this.#gameForEvent.id);
+
+				// Save the event URL for next launch
+				await this.saveApiKey(this.#apiKeyInput.value);
 			}
 		} catch (e) {
+			displayNotif(e);
+			displayNotif(e.stack);
 			console.log(e);
+			console.log(e.stack);
 		}
 	}
 
@@ -1088,7 +1172,7 @@ class StartGG {
 			property = property.substr(1);
 		}
 		return function (a, b) {
-			/* next line works with strings and numbers, 
+			/* next line works with strings and numbers,
 			 * and you may want to customize it to your needs
 			 */
 			var result = (a[property] < b[property]) ? -1 : (a[property] > b[property]) ? 1 : 0;
@@ -1126,12 +1210,18 @@ class StartGG {
 	}
 
 	async generalApiCall(query, variables, pagination) {
+		const apiKey = this.#apiKeyInput.value;
+		if (!apiKey) {
+			displayNotif('Please enter your Start.gg API key');
+			throw new Error('API key is required');
+		}
+
 		const response = await fetch('https://api.start.gg/gql/alpha', {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 				"Accept": "appplication/json",
-				"Authorization": "Bearer " + connectInformation.key
+				"Authorization": "Bearer " + apiKey
 			},
 			body: JSON.stringify({
 				"query": query,
@@ -1147,6 +1237,15 @@ class StartGG {
 			throw e;
 		}
 
+		// print json for debugging
+		console.log(JSON.stringify(json, null, 2));
+
+		if (JSON.stringify(json).includes("Invalid authentication token")) {
+			console.log(apiKey);
+			displayNotif('Invalid Start.gg API key');
+			throw new Error('Invalid Start.gg API key');
+		}
+
 		if (pagination && variables.page) {
 			let originalPage = false;
 			if (variables.page == 1) {
@@ -1158,7 +1257,7 @@ class StartGG {
 				variables.page += 1;
 				paginationObj.nodes = paginationObj.nodes.concat(await this.generalApiCall(query, variables, pagination));
 			}
-			
+
 			if (originalPage) {
 				//do nothing.
 			} else {
@@ -1194,14 +1293,14 @@ class StartGG {
 			// if a player preset for this player exists, add already existing characters
 			const existingPreset = await getJson(`${stPath.text}/Player Info/${players[i].nameInp.value}`)
 			if (existingPreset) {
-	
+
 				// add existing characters to the new json, but not if the character is the same
 				for (let i = 0; i < existingPreset.characters.length; i++) {
 					preset.characters.push(existingPreset.characters[i]);
 				}
-	
+
 			}
-	
+
 			saveJson(`/Player Info/${players[i].nameInp.value}`, preset);
 			displayNotif("Player preset has been saved");
 			playerFinder.setPlayerPresets();
