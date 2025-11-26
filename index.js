@@ -1,19 +1,21 @@
+const { app } = require('electron')
 const path = require('path')
 const WebSocket = require('ws')
 
 // define the main folder
 let resourcesPath;
-if (process.platform == "win32") { // if on Windows
-    resourcesPath = path.resolve(process.env.PORTABLE_EXECUTABLE_DIR, 'Resources');
+if (!app.isPackaged) {
+    // if using npm/yarn start
+    resourcesPath = path.resolve('resources');
+} else if (process.platform == "win32") { // if on Windows
+    resourcesPath = path.resolve('resources', 'app.asar', 'resources');
 } else if (process.platform == "darwin") { // if on MacOS
     // The ../../../.. here is specific to how/where the executable ends up after
     // it gets packaged into the .app
-    resourcesPath = path.resolve(process.execPath, "../../../..", 'Resources');
+    resourcesPath = path.resolve(process.execPath, "../../../..", 'resources');
 } else { // if on Linux
-    resourcesPath = path.resolve('.', 'Resources');
+    resourcesPath = path.resolve('resources');
 }
-// if using npm/yarn start
-/* resourcesPath = path.resolve('..', 'Stream Tool', 'Resources') */
 
 loadExecFile();
 async function loadExecFile() {

@@ -1,3 +1,9 @@
+node_modules
+dist
+
+.vscode
+.stfolder
+
 # GUI Settings
 Stream Tool/Resources/Texts/GUI Settings.json
 
