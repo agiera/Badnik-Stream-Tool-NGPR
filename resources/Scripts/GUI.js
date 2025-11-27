@@ -6,6 +6,7 @@ import { scores } from './GUI/Score/Scores.mjs';
 import { Team } from './GUI/Team/Team.mjs';
 import { teams } from './GUI/Team/Teams.mjs';
 import './GUI/Swap Players.mjs'; // so it loads the listener
+import './GUI/LoadAll.mjs'; // so it loads the Load All button listener
 import { addCaster } from './GUI/Caster/Casters.mjs';
 import { writeScoreboard } from './GUI/Write Scoreboard.mjs';
 import { loadKeybinds } from './GUI/Keybinds.mjs';

@@ -822,6 +822,18 @@ button:hover {
   background-color: var(--bg5);
 }
 
+.loadAllButton {
+  flex: 0 0 auto !important;
+  width: calc(25% - 16px) !important;
+}
+
+.loadAllButton:hover {
+  background-color: var(--bg3);
+}
+.loadAllButton:active {
+  background-color: var(--bg5);
+}
+
 #botBarBracket, #settingsRegion {
   width: 32px;
   background-color: var(--bg3)

@@ -224,16 +224,19 @@ class StartGG {
 		this.loadApiKey().then(savedKey => {
 			if (savedKey) {
 				this.#apiKeyInput.value = savedKey;
+			} else {
+				return;
 			}
-		});
-
-		this.loadEventUrl().then(savedUrl => {
-			if (savedUrl) {
-				this.#eventIdInput.value = savedUrl;
+			this.loadEventUrl().then(savedUrl => {
+				if (savedUrl) {
+					this.#eventIdInput.value = savedUrl;
+				} else {
+					return;
+				}
 				this.getEntrantsForEvent(savedUrl).then(() => {
 					this.#startGGPopulateTournamentNameBtn.click();
 				});
-			}
+			});
 		});
 
     }
@@ -544,6 +547,111 @@ class StartGG {
 		this.#previousScores = [0,0];
 	}
 
+	/**
+	 * Gets the next set marked for stream that hasn't been completed yet.
+	 * Falls back to returning a set with both entrants if no stream sets are pending.
+	 * @returns {Object|null} The set data or null if no suitable set found
+	 */
+	async getNextStreamSet() {
+		try {
+			if (!this.validEventId()) {
+				return null;
+			}
+
+			let query = `
+			query EventSets($eventId: ID!, $page: Int!, $perPage: Int!) {
+				event(id: $eventId) {
+				  id
+				  name
+				  sets(
+					page: $page
+					perPage: $perPage
+					sortType: STANDARD
+					filters: {
+						state: [1, 2]
+					}
+				  ) {
+					pageInfo {
+						total
+						totalPages
+					}
+					nodes {
+					  id
+					  state
+					  fullRoundText
+					  completedAt
+					  stream {
+						id
+						streamName
+					  }
+					  slots {
+						id
+						entrant {
+						  id
+						}
+						prereqType
+						prereqId
+					  }
+					}
+				  }
+				}
+			  }
+			`;
+
+			let variables = {
+				"eventId": this.#eventId,
+				"page": 1,
+				"perPage": 100
+			}
+
+			displayNotif('Looking for next stream set...');
+			const json = await this.generalApiCall(query, variables, 'data.event.sets');
+
+			if (!json.data || !json.data.event || !json.data.event.sets) {
+				displayNotif('Failed to retrieve sets from event');
+				return null;
+			}
+
+			const sets = json.data.event.sets.nodes;
+
+			// First priority: find earliest set marked for stream that's not completed
+			const streamSets = sets.filter(set =>
+				set.stream !== null &&
+				set.completedAt === null &&
+				set.slots[0].entrant !== null &&
+				set.slots[1].entrant !== null
+			);
+
+			if (streamSets.length > 0) {
+				displayNotif('Found stream set');
+				await this.updateCurrentSet(streamSets[0]);
+				return streamSets[0]; // Return the first (earliest) stream set
+			}
+
+			// Second priority: find sets with both entrants populated
+			const readySets = sets.filter(set =>
+				set.completedAt === null &&
+				set.slots[0].entrant !== null &&
+				set.slots[1].entrant !== null
+			);
+
+			if (readySets.length === 1) {
+				displayNotif('Found single ready set');
+				await this.updateCurrentSet(readySets[0]);
+				return readySets[0];
+			}
+
+			// No suitable set found
+			displayNotif('No pending stream sets found');
+			return null;
+
+		} catch (e) {
+			console.error('Error getting next stream set:', e);
+			displayNotif('Error retrieving stream set');
+			return null;
+		}
+	}
+
     async getPlayerSetInfo(playerName, eventId) {
 		try {
 			if (!this.validEventId()) {
@@ -606,36 +714,42 @@ class StartGG {
 
 			let json = await this.generalApiCall(query, variables);
 
-			clearTeams();
-			clearPlayers();
-			clearScores();
-			this.resetPreviousScore();
-
-			this.#currentSetInfo = {};
-			this.#currentSetInfo.useDetailedReportType = true;
-			this.#currentSetInfo.setDataSimple = {};
-			this.#currentSetInfo.setDataDetailed = {};
-
-
-			if (json.data.event.sets.nodes.length == 1) {
-				if (json.data.event.sets.nodes[0].state != 2) { //State of 2 means in progress. We only want this cuz a player should only be in one active set per event at a time.
-					displayNotif('No active sets for selected player. StartGG may be a little slow...');
-					return;
-				}
-				this.#currentSetInfo = json.data.event.sets.nodes[0];
-				this.#currentSetInfo.useDetailedReportType = true;
-				this.#currentSetInfo.setDataSimple = {};
-				this.#currentSetInfo.setDataDetailed = {};
-			} else {
+			if (json.data.event.sets.nodes.length != 1) {
 				displayNotif('No active sets for selected player. StartGG may be a little slow...');
 				return;
 			}
 
-			await this.setPlayersInTool();
+			await this.updateCurrentSet(json.data.event.sets.nodes[0]);
 
 		} catch (e) {
 			console.log(e);
 		}
+	}
+
+	async updateCurrentSet(setJson) {
+		clearTeams();
+		clearPlayers();
+		clearScores();
+		this.resetPreviousScore();
+
+		this.#currentSetInfo = {};
+		this.#currentSetInfo.useDetailedReportType = true;
+		this.#currentSetInfo.setDataSimple = {};
+		this.#currentSetInfo.setDataDetailed = {};
+
+		// State of 2 means in progress.
+		// We only want this cuz a player should only be in one active set per event at a time.
+		// https://smashgg-schema.netlify.app/reference/activitystate.doc
+		if (setJson.state == 3) {
+			displayNotif('No active sets for selected player. StartGG may be a little slow...');
+			return;
+		}
+		this.#currentSetInfo = setJson;
+		this.#currentSetInfo.useDetailedReportType = true;
+		this.#currentSetInfo.setDataSimple = {};
+		this.#currentSetInfo.setDataDetailed = {};
+
+		await this.setPlayersInTool();
 	}
 
 	async setPlayersInTool () {
