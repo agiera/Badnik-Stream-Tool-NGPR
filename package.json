@@ -16,6 +16,13 @@
   },
   "build": {
     "appId": "badnik.st.gui",
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources",
+        "filter": ["**/*"]
+      }
+    ],
     "linux": {
       "target": "AppImage"
     },

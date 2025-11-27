@@ -10,7 +10,7 @@ if (!app.isPackaged) {
     // if using npm/yarn start
     resourcesPath = path.resolve('resources');
 } else if (process.platform == "win32") { // if on Windows
-    resourcesPath = path.resolve('resources', 'app.asar', 'resources');
+    resourcesPath = path.resolve('resources', 'resources');
 } else if (process.platform == "darwin") { // if on MacOS
     // The ../../../.. here is specific to how/where the executable ends up after
     // it gets packaged into the .app
