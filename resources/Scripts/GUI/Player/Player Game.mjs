@@ -52,6 +52,26 @@ export class PlayerGame extends Player {
 
     }
 
+    async updateFromPreset(preset) {
+        // player info
+        this.setName(preset.name);
+        this.setTag(preset.tag);
+        this.setPronouns(preset.pronouns);
+        this.setSocials(preset.socials);
+        this.setState(preset.state);
+
+        // player character and skin
+        if (!preset.characters || preset.characters.length == 0) {
+            await this.charChange("Random");
+            await this.skinChange(this.findSkin("Default"));
+            return;
+        }
+        const newChar = preset.characters[0].character;
+        const newSkin = {name: preset.characters[0].skin || "Default"};
+        await this.charChange(newChar, true);
+        await this.skinChange(newSkin);
+    }
+
 
     getName() {
         return this.nameInp.value;
@@ -322,6 +342,12 @@ export class PlayerGame extends Player {
         context.font = font;
         const metrics = context.measureText(text);
         return metrics.width;
+    }
+
+    async saveProfileInfo() {
+        profileInfo.show(this);
+        await profileInfo.savePreset();
+        profileInfo.hide();
     }
 
 }

@@ -647,6 +647,7 @@ class StartGG {
 
 		} catch (e) {
 			console.error('Error getting next stream set:', e);
+			console.error(e.stack);
 			displayNotif('Error retrieving stream set');
 			return null;
 		}
@@ -753,25 +754,22 @@ class StartGG {
 	}
 
 	async setPlayersInTool () {
-		/* TODO
-
-		Edit the playerInfo.json to include the playerId value (this will be used in future situations.)
-			- Only update the PlayerInfo.json if the file is missing data. Do not update if data already exists.
-			- If toggled on for auto-overwrite, allow it to overwrite data. Toggle for each?
-			- Update the tool to use random, but dont add that to the player Json.
-		*/
-
 		if (!this.#currentSetInfo || this.#currentSetInfo.slots.length <= 0) {
 			displayNotif('No match in progress for selected player');
 			return;
 		}
 
 		for (let i = 0; i < 2; i++) {
-			let playerCombinedJson = this.getCombinedPlayerDataFromEntrantId(this.#currentSetInfo.slots[i].entrant.id);
-			players[i].setName(playerCombinedJson.name);
-			players[i].setTag(playerCombinedJson.tag);
-			players[i].setPronouns(playerCombinedJson.pronouns);
-			players[i].setSocials(JSON.parse(JSON.stringify(playerCombinedJson.socials)));
+			const entrantId = this.#currentSetInfo.slots[i].entrant.id;
+			let playerCombinedJson = this.getCombinedPlayerDataFromEntrantId(entrantId);
+			// Update or create player preset file with playerId
+
+			console.log('playerCombinedJson:', JSON.stringify(playerCombinedJson, null, 2));
+			// Set player
+			await players[i].updateFromPreset(playerCombinedJson);
+			await players[i].saveProfileInfo();
+			// Set initial scores to zero
+			scores[i].setScore(0);
 		}
 		if (this.#startGGPopulateRoundNameCheck.checked) {
 			round.setText(this.getCorrectedRoundName(this.#currentSetInfo.fullRoundText));
@@ -781,82 +779,91 @@ class StartGG {
 	}
 
 	getCombinedPlayerDataFromEntrantId(entrantId) {
+		console.log('[StartGG] getCombinedPlayerDataFromEntrantId - entrantId:', entrantId);
 		if (!entrantId) {
+			console.warn('[StartGG] No entrantId provided');
 			return;
 		}
 		const useStartGGData = this.#startGGPrioritizeStartGGDataCheck.checked;
 		const useNonEmptyData = this.#startGGPrioritizeNonEmptyDataCheck.checked;
+		console.log('[StartGG] Settings - useStartGGData:', useStartGGData, 'useNonEmptyData:', useNonEmptyData);
 
 		let playerData = (JSON.parse(this.getPlayerFromPlayerList('entrantId', entrantId)));
+		console.log('[StartGG] Player data from list:', JSON.stringify(playerData, null, 2));
 
 		let playerReturnObj = {
 			name: playerData.tag,
 			tag: playerData.sponsor,
 			pronouns: (playerData.user && playerData.user.genderPronoun) ? playerData.user.genderPronoun : '',
-			socials: (playerData.user && playerData.user.authorizations) ? this.getSocialsInCorrectFormat(playerData.user.authorizations) : ''
+			socials: (playerData.user && playerData.user.authorizations) ? this.getSocialsInCorrectFormat(playerData.user.authorizations) : '',
+			characters: []
 		}
+		console.log('[StartGG] Initial return object:', JSON.stringify(playerReturnObj, null, 2));
 
+		this.setPlayerPresets();
 		for (let p in this.#playerPresets) {
 			const preset = this.#playerPresets[p];
 
 			if (preset.playerId == playerData.playerId || preset.name == playerReturnObj.name) {
+				console.log('[StartGG] Found matching preset:', preset.name);
+				console.log('[StartGG] Preset data:', JSON.stringify(preset, null, 2));
 				playerReturnObj.tag = this.getPlayerFieldValue(playerReturnObj.tag, preset.tag, useStartGGData, useNonEmptyData);
+				playerReturnObj.playerId = this.getPlayerFieldValue(playerReturnObj.playerId, preset.playerId, useStartGGData, useNonEmptyData);
 				playerReturnObj.pronouns = this.getPlayerFieldValue(playerReturnObj.pronouns, preset.pronouns, useStartGGData, useNonEmptyData);
 				playerReturnObj.socials = this.getPlayerFieldValue(playerReturnObj.socials, preset.socials, useStartGGData, useNonEmptyData);
+				playerReturnObj.characters = this.getPlayerFieldValue(playerReturnObj.characters, preset.characters, useStartGGData, useNonEmptyData);
+				console.log('[StartGG] After merging with preset:', JSON.stringify(playerReturnObj, null, 2));
 				break;
 			}
 		}
 
+		console.log('[StartGG] Final combined data:', JSON.stringify(playerReturnObj, null, 2));
 		return JSON.parse(JSON.stringify(playerReturnObj));
 
 	}
 
 	getPlayerFieldValue(startGGValue, presetValue, useStartGGValues, prioritizeNonEmpty) {
-		let value = '';
+		let value;
 
-		if (typeof startGGValue == 'object' && typeof presetValue == 'object') { //objects
-			value = {};
-			for (let i in startGGValue) {
-				if (useStartGGValues) {
-					if (prioritizeNonEmpty) {
-						value[i] = (startGGValue[i]) ? startGGValue[i] : presetValue[i];
-					} else {
-						value[i] = startGGValue[i];
-					}
-				} else {
-					if (prioritizeNonEmpty) {
-						value[i] = (presetValue[i]) ? presetValue[i] : startGGValue[i];
-					} else {
-						value[i] = presetValue[i];
-					}
-				}
+		if (useStartGGValues && !prioritizeNonEmpty) {
+			return startGGValue;
+		}
+		if (!useStartGGValues && !prioritizeNonEmpty) {
+			return presetValue;
+		}
+
+		if (startGGValue === undefined || startGGValue === null || startGGValue === '') {
+			return presetValue;
+		}
+		if (presetValue === undefined || presetValue === null || presetValue === '') {
+			return startGGValue;
+		}
+
+		if (typeof startGGValue == 'object' && Array.isArray(startGGValue)
+			&& typeof presetValue == 'object' && Array.isArray(presetValue)
+		) {
+			value = [];
+			const maxLen = Math.max(startGGValue.length, presetValue.length);
+			for (let i = 0; i < maxLen; i++) {
+				value[i] = this.getPlayerFieldValue(startGGValue[i], presetValue[i], useStartGGValues, prioritizeNonEmpty);
 			}
-
-			for (let i in presetValue) {
-				if (useStartGGValues) {
-					if (prioritizeNonEmpty) {
-						value[i] = (startGGValue[i]) ? startGGValue[i] : presetValue[i];
-					} else {
-						value[i] = startGGValue[i];
-					}
-				} else {
-					if (prioritizeNonEmpty) {
-						value[i] = (presetValue[i]) ? presetValue[i] : startGGValue[i];
-					} else {
-						value[i] = presetValue[i];
-					}
-				}
+		} else if (typeof startGGValue == 'object' && typeof presetValue == 'object'
+			&& !startGGValue instanceof String && !presetValue instanceof String
+		) { // non-string objects
+			value = {};
+			for (let key in (startGGValue.keys + presetValue.keys)) {
+				value[i] = this.getPlayerFieldValue(startGGValue[key], presetValue[key], useStartGGValues, prioritizeNonEmpty);
 			}
 		} else { //Simple
 			if (useStartGGValues) {
 				if (prioritizeNonEmpty) {
-					value = (startGGValue) ? startGGValue : presetValue;
+					value = startGGValue ? startGGValue : presetValue;
 				} else {
 					value = startGGValue;
 				}
 			} else {
 				if (prioritizeNonEmpty) {
-					value = (presetValue) ? presetValue : startGGValue;
+					value = presetValue ? presetValue : startGGValue;
 				} else {
 					value = presetValue;
 				}
@@ -1395,34 +1402,6 @@ class StartGG {
 		}
 	}
 
-	/* //Scrapping this idea for now... Standard save/apply preset would overwrite this. It would be better to just handle things entirely within this plugin.
-	async savePlayerPresets(onlyPlayerId) {
-
-		for (let i = 0; i < 2; i++) {
-			const preset = {
-				name: players[i].nameInp.value,
-				tag: players[i].tag,
-				pronouns: players[i].pronouns,
-				socials: players[i].socials,
-			}
-
-			// if a player preset for this player exists, add already existing characters
-			const existingPreset = await getJson(`${stPath.text}/Player Info/${players[i].nameInp.value}`)
-			if (existingPreset) {
-
-				// add existing characters to the new json, but not if the character is the same
-				for (let i = 0; i < existingPreset.characters.length; i++) {
-					preset.characters.push(existingPreset.characters[i]);
-				}
-
-			}
-
-			saveJson(`/Player Info/${players[i].nameInp.value}`, preset);
-			displayNotif("Player preset has been saved");
-			playerFinder.setPlayerPresets();
-		}
-	}
-	*/
 }
 export const startGG = new StartGG;
 

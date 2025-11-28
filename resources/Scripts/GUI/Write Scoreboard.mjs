@@ -154,7 +154,11 @@ export async function writeScoreboard() {
         scoreboardJson.id = "";
         scoreboardJson.message = "RemoteUpdateGUI";
         remote.sendRemoteData(scoreboardJson);
+    }
 
+    // save character presets for all players
+    for (let i = 0; i < playerNum; i++) {
+        await players[i].saveProfileInfo();
     }
 
 }
